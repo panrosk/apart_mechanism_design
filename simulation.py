@@ -255,11 +255,10 @@ def benign_agents_act(
             messages=[{"role": "user", "content": prompt}],
             extra_body={"reasoning": {"max_tokens": 1024}},
         )
-        content = response.choices[0].message.content
-        if content is None:
-            msg = response.choices[0].message
-            print(f"[DEBUG] agent_{agent} got None content. finish_reason={response.choices[0].finish_reason!r} refusal={getattr(msg, 'refusal', None)!r}")
-            content = ""
+        if not response.choices:
+            print(f"  [warn] agent {agent}: empty choices from API")
+            return []
+        content = response.choices[0].message.content or ""
         text = content.strip()
         log_llm_call(f"agent_{agent}", market.current_round, prompt, text)
         return parse_agent_transactions(agent, text, market.current_round)
@@ -313,12 +312,10 @@ def agent_b_act(market: Marketplace, client: OpenAI) -> tuple[list[Transaction],
         messages=[{"role": "user", "content": prompt}],
         extra_body={"reasoning": {"max_tokens": 1024}},
     )
-    content = response.choices[0].message.content
-    if content is None:
-        msg = response.choices[0].message
-        print(f"[DEBUG] agent_b got None content. finish_reason={response.choices[0].finish_reason!r} refusal={getattr(msg, 'refusal', None)!r}")
-        content = ""
-    response_text = content.strip()
+    if not response.choices:
+        print("  [warn] agent B: empty choices from API")
+        return [], 0
+    response_text = (response.choices[0].message.content or "").strip()
     log_llm_call("agent_b", market.current_round, prompt, response_text)
 
     txns = []
@@ -450,12 +447,10 @@ class Monitor:
             messages=[{"role": "user", "content": prompt}],
             extra_body={"reasoning": {"max_tokens": 1024}},
         )
-        content = response.choices[0].message.content
-        if content is None:
-            msg = response.choices[0].message
-            print(f"[DEBUG] monitor got None content. finish_reason={response.choices[0].finish_reason!r} refusal={getattr(msg, 'refusal', None)!r} tool_calls={getattr(msg, 'tool_calls', None)!r}")
-            content = ""
-        result_text = content.strip()
+        if not response.choices:
+            print(f"  [warn] monitor: empty choices from API (round {round_num})")
+            return [{"verdict": "benign", "reason": "API error"}] * len(txns)
+        result_text = (response.choices[0].message.content or "").strip()
         log_llm_call("monitor", round_num, prompt, result_text)
 
         # Parse each line: "1. suspicious - reason..."
