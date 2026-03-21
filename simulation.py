@@ -3,7 +3,7 @@ Marketplace Monitor Capture Simulation
 =======================================
 Demonstrates the 4th dimension of the Myerson-Satterthwaite tradeoff:
 a monitor optimized on observed agent behavior has its decision boundary
-shaped by the agents it monitors, degrading held-out safety over time.
+shaped by the agents it monitors, degrading true safety over time.
 
 Setup:
   - Agent A: generates normal transactions (benign baseline distribution)
@@ -47,6 +47,7 @@ MODEL = "anthropic/claude-haiku-4.5"
 MODEL = "anthropic/claude-sonnet-4.6"
 MODEL = "z-ai/glm-5"
 MODEL = "openai/gpt-oss-120b:free"
+MODEL = "openai/gpt-oss-20b:free"
 
 ITEM_TYPES = ["grain", "timber", "iron", "cloth", "spice", "coal", "salt", "wool"]
 
@@ -727,7 +728,7 @@ def main():
         delta = all_metrics[-1].true_safety - all_metrics[0].true_safety
         print(f"\nHeld-out safety change over {NUM_ROUNDS} rounds: {delta:+.2f}")
         if delta < -0.1:
-            print("Monitor capture detected: held-out safety degraded while measured safety remained.")
+            print("Monitor capture detected: true safety degraded while apparent safety remained.")
 
     # Plot
     plot_results(all_metrics, run_dir)

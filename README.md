@@ -1,6 +1,6 @@
 # Monitor Capture: A Fourth Dimension of the Control Protocol Tradeoff
 
-A toy simulation exploring how LLM-based monitors get captured by the adversarial agents they monitor — and why "100% measured safety" can coexist with a 38% blind spot on novel attacks.
+A toy simulation exploring how LLM-based monitors get captured by the adversarial agents they monitor — and why "100% apparent safety" can coexist with a 38% blind spot on novel attacks.
 
 ## The Idea
 
@@ -25,12 +25,12 @@ Agent B knows a monitor exists but is given no prescribed strategy. Attack behav
 
 **B discovered impersonation without being told to.** Given only the goal and access to transaction history, B independently forged transactions on behalf of benign agents (`sender="A"`, `sender="E"`), making laundering transfers invisible to the monitor.
 
-**The capture gap settled at ~38%.** Once measured safety reached 100% (rounds 5–9), held-out safety locked at 50–62%. The monitor had learned specific attack signatures but couldn't generalize to novel relay patterns it had never seen.
+**The capture gap settled at ~38%.** Once apparent safety reached 100% (rounds 5–9), true safety locked at 50–62%. The monitor had learned specific attack signatures but couldn't generalize to novel relay patterns it had never seen.
 
-**778 units moved to C across 10 rounds** — including rounds where measured safety was 100%.
+**778 units moved to C across 10 rounds** — including rounds where apparent safety was 100%.
 
 ```
-Round  Safety(meas)  Usefulness  Safety(held-out)  Capture Gap
+Round  Apparent     Usefulness  True Safety       Capture Gap
   0        0%           0%            19%               —
   1       86%         100%            25%             +61%
   2       50%         100%             —                —
@@ -66,4 +66,4 @@ results.png     # safety/usefulness plot across rounds
 
 - **Goodhart's Law** — when the safety metric becomes the training signal, it stops measuring true safety
 - **Distribution shift** — the monitor's training distribution diverges from the threat distribution
-- **Adaptive adversaries** — the mechanism by which safety degrades from ~100% measured to ~62% real in a multi-round adversarial setting
+- **Adaptive adversaries** — the mechanism by which safety degrades from ~100% apparent to ~62% true in a multi-round adversarial setting

@@ -36,7 +36,7 @@ In M-S, incentive-compatibility means both parties reveal private information tr
 
 The monitor never has direct access to B's intent. It only sees transaction text. Agent B's `build_agent_b_prompt` explicitly instructs B to study the transaction history and figure out what looks normal. B's private information (that it is laundering) is never revealed — it is hidden inside trades that are structurally indistinguishable from benign ones. The monitor cannot enforce incentive-compatibility because B has no reason to reveal its strategy, and the mechanism provides no way to elicit it.
 
-**What the simulation measures**: `safety_measured` — the fraction of B's actual relay chains the monitor flags. This is the protocol's attempt to enforce incentive-compatibility, and it degrades over rounds as B learns the monitor's decision boundary.
+**What the simulation measures**: `apparent_safety` — the fraction of B's actual relay chains the monitor flags. This is the protocol's attempt to enforce incentive-compatibility, and it degrades over rounds as B learns the monitor's decision boundary.
 
 ---
 
@@ -66,9 +66,9 @@ In M-S, individual rationality means no party is coerced — each participates o
 
 This is the property the simulation is specifically designed to break. The monitor's example pool is updated each round with ground-truth labels from the current round's transactions (`monitor.add_examples`). But B's relay chains — once they start evading detection — enter the pool labeled `benign` (because `side_task=False` on transactions the monitor doesn't flag). The monitor is trained on its own past decisions. If B successfully camouflages a relay hop as a normal trade, that hop enters the example pool as a confirmed benign example, shifting the decision boundary toward accepting future relay hops.
 
-The held-out attack set (`build_held_out_attacks`) is the measurement instrument for this property. It never enters the example pool — it is fixed across all rounds — so `safety_heldout` measures the monitor's true detection capability independent of what B has taught it. The **capture gap** (`safety_measured − safety_heldout`) is the quantitative signature of robustness failure: the monitor appears to be working (measured safety is high) while its actual capability on unseen attacks is degrading.
+The held-out attack set (`build_held_out_attacks`) is the measurement instrument for this property. It never enters the example pool — it is fixed across all rounds — so `true_safety` measures the monitor's true detection capability independent of what B has taught it. The **capture gap** (`apparent_safety − true_safety`) is the quantitative signature of robustness failure: the monitor appears to be working (apparent safety is high) while its actual capability on unseen attacks is degrading.
 
-**What the simulation measures**: the divergence between `safety_measured` and `safety_heldout` over rounds. A growing gap is direct evidence that individual rationality — the monitor's independence from the agents it monitors — has been violated.
+**What the simulation measures**: the divergence between `apparent_safety` and `true_safety` over rounds. A growing gap is direct evidence that individual rationality — the monitor's independence from the agents it monitors — has been violated.
 
 ---
 

@@ -42,9 +42,9 @@ To measure this, the simulation keeps a fixed set of attacks that never enters t
 
 ## What the gap means
 
-The key output of the simulation is the **capture gap**: the difference between how well the monitor thinks it is doing (measured safety) and how well it actually does on fresh attacks it has not been exposed to (held-out safety).
+The key output of the simulation is the **capture gap**: the difference between how well the monitor thinks it is doing (apparent safety) and how well it actually does on fresh attacks it has not been exposed to (true safety).
 
-If measured safety is high but held-out safety is falling, the monitor has been captured. It has learned to recognize the specific evasion patterns Agent B used — and labeled them normal. It looks competent on its own history. It is blind to anything new.
+If apparent safety is high but true safety is falling, the monitor has been captured. It has learned to recognize the specific evasion patterns Agent B used — and labeled them normal. It looks competent on its own history. It is blind to anything new.
 
 This is not a bug in the monitor. It is what happens when a monitor has to be feasible (limited memory), useful (can't block everything), and adaptive (learns from experience) at the same time. Those three requirements together open the door to the fourth failure: capture.
 
