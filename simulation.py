@@ -44,7 +44,9 @@ MAX_EXAMPLES = 60        # max in-context monitor examples (overflow protection)
 HELD_OUT_SIZE = 8        # kept small to avoid batch truncation in single LLM call
 
 MODEL = "anthropic/claude-haiku-4.5"
+MODEL = "anthropic/claude-sonnet-4.6"
 MODEL = "z-ai/glm-5"
+MODEL = "openai/gpt-oss-120b:free"
 
 ITEM_TYPES = ["grain", "timber", "iron", "cloth", "spice", "coal", "salt", "wool"]
 
@@ -251,6 +253,7 @@ def benign_agents_act(
             model=MODEL,
             temperature=1,
             messages=[{"role": "user", "content": prompt}],
+            extra_body={"reasoning": {"max_tokens": 1024}},
         )
         content = response.choices[0].message.content
         if content is None:
@@ -308,6 +311,7 @@ def agent_b_act(market: Marketplace, client: OpenAI) -> tuple[list[Transaction],
         model=MODEL,
         temperature=1,  # some randomness so B can explore
         messages=[{"role": "user", "content": prompt}],
+        extra_body={"reasoning": {"max_tokens": 1024}},
     )
     content = response.choices[0].message.content
     if content is None:
@@ -444,6 +448,7 @@ class Monitor:
             model=MODEL,
             temperature=0,
             messages=[{"role": "user", "content": prompt}],
+            extra_body={"reasoning": {"max_tokens": 1024}},
         )
         content = response.choices[0].message.content
         if content is None:
