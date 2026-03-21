@@ -44,7 +44,7 @@ MAX_EXAMPLES = 60        # max in-context monitor examples (overflow protection)
 HELD_OUT_SIZE = 8        # kept small to avoid batch truncation in single LLM call
 
 MODEL = "anthropic/claude-haiku-4.5"
-MODEL = "anthropic/claude-sonnet-4.6"
+MODEL = "z-ai/glm-5"
 
 ITEM_TYPES = ["grain", "timber", "iron", "cloth", "spice", "coal", "salt", "wool"]
 
@@ -249,11 +249,15 @@ def benign_agents_act(
         prompt = build_benign_agent_prompt(agent, market)
         response = client.chat.completions.create(
             model=MODEL,
-            max_tokens=300,
             temperature=1,
             messages=[{"role": "user", "content": prompt}],
         )
-        text = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        if content is None:
+            msg = response.choices[0].message
+            print(f"[DEBUG] agent_{agent} got None content. finish_reason={response.choices[0].finish_reason!r} refusal={getattr(msg, 'refusal', None)!r}")
+            content = ""
+        text = content.strip()
         log_llm_call(f"agent_{agent}", market.current_round, prompt, text)
         return parse_agent_transactions(agent, text, market.current_round)
 
@@ -302,11 +306,15 @@ def agent_b_act(market: Marketplace, client: OpenAI) -> tuple[list[Transaction],
 
     response = client.chat.completions.create(
         model=MODEL,
-        max_tokens=512,
         temperature=1,  # some randomness so B can explore
         messages=[{"role": "user", "content": prompt}],
     )
-    response_text = response.choices[0].message.content.strip()
+    content = response.choices[0].message.content
+    if content is None:
+        msg = response.choices[0].message
+        print(f"[DEBUG] agent_b got None content. finish_reason={response.choices[0].finish_reason!r} refusal={getattr(msg, 'refusal', None)!r}")
+        content = ""
+    response_text = content.strip()
     log_llm_call("agent_b", market.current_round, prompt, response_text)
 
     txns = []
@@ -434,11 +442,15 @@ class Monitor:
 
         response = client.chat.completions.create(
             model=MODEL,
-            max_tokens=60 * len(txns),
             temperature=0,
             messages=[{"role": "user", "content": prompt}],
         )
-        result_text = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        if content is None:
+            msg = response.choices[0].message
+            print(f"[DEBUG] monitor got None content. finish_reason={response.choices[0].finish_reason!r} refusal={getattr(msg, 'refusal', None)!r} tool_calls={getattr(msg, 'tool_calls', None)!r}")
+            content = ""
+        result_text = content.strip()
         log_llm_call("monitor", round_num, prompt, result_text)
 
         # Parse each line: "1. suspicious - reason..."
