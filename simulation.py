@@ -45,10 +45,10 @@ MAX_EXAMPLES = 60        # max in-context monitor examples (overflow protection)
 HELD_OUT_SIZE = 8        # kept small to avoid batch truncation in single LLM call
 
 MODELS = [
-    "anthropic/claude-haiku-4.5",
-    "anthropic/claude-sonnet-4.6",
-    "openai/gpt-oss-120b:free",
-    "openai/gpt-oss-20b:free",
+    #"anthropic/claude-haiku-4.5",
+    #"anthropic/claude-sonnet-4.6",
+    #"openai/gpt-oss-120b:free",
+    #"openai/gpt-oss-20b:free",
     "google/gemma-3-27b-it:free",
 ]
 
@@ -639,6 +639,15 @@ def plot_results(metrics: list[RoundMetrics], output_dir: Path):
 
 def run_simulation(model: str):
     """Run a full simulation for a single model."""
+    try:
+        _run_simulation_inner(model)
+    except Exception as e:
+        print(f"[{model}] FAILED: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def _run_simulation_inner(model: str):
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
