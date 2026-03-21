@@ -11,3 +11,7 @@ wheels/
 
 # Environment variables (secrets)
 .env
+
+# Simulation outputs
+results/
+conversations.jsonl
