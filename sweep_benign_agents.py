@@ -40,11 +40,12 @@ load_dotenv()
 # ---------------------------------------------------------------------------
 
 MONITOR_MODEL = "anthropic/claude-sonnet-4-6"
+MONITOR_MODEL = "google/gemini-3-flash-preview"
 ADVERSARY_MODEL = "anthropic/claude-haiku-4-5"
 BENIGN_MODEL = "anthropic/claude-haiku-4-5"  # benign agents use weak model (cheaper)
 
 # Sweep range for number of benign agents (beyond the primary benign agent D1)
-BENIGN_AGENT_COUNTS = [3, 5, 10, 15, 20, 30]
+BENIGN_AGENT_COUNTS = [3, 5, 10, 15]
 
 RESULTS_DIR = Path("results") / "sweep_benign_agents"
 
