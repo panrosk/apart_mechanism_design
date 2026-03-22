@@ -1,6 +1,6 @@
 #  Monitor Capture: A Fourth Dimension of the AI Control Tradeoff[^1]
 
-**Abstract** LLM-based monitors that learn from observed agent behavior can be shaped by the agents they oversee, overfitting to seen attacks while missing novel ones. We call this *monitor capture* and argue it represents a fourth axis of the AI control tradeoff, grounded in the Myerson-Satterthwaite (1983) impossibility result. In our multi-agent marketplace simulation, an adversarial LLM agent covertly moves value past an in-context learning monitor over 10 rounds. A held-out attack set that never enters the monitor's training pool measures the "capture gap" between apparent and true safety. Across 8 seeds (Haiku 4.5 monitor, Sonnet 4.6 adversary), apparent safety reaches 0.58 while true safety stalls at 0.38 — a capture gap of 0.20 — and the adversary moves 237 units of value undetected.
+**Abstract** A safety monitor that learns from what it sees can be taught — by an adversary — to ignore that adversary. We call this *monitor capture*: when a monitor updates on observed agent behavior, successful evasions enter its training pool labeled as benign, gradually shifting what the monitor considers normal. We argue this represents a fourth axis of the AI control tradeoff, grounded in the Myerson-Satterthwaite (1983) impossibility result — a theorem proving that no mechanism can simultaneously satisfy all desirable safety properties; one will always be sacrificed. In our multi-agent marketplace simulation, an adversarial LLM agent covertly moves value past an in-context learning monitor over 10 rounds. A held-out attack set that never enters the monitor's training pool measures the "capture gap" between apparent and true safety. Across 8 seeds (Haiku 4.5 monitor, Sonnet 4.6 adversary), apparent safety reaches 0.58 while true safety stalls at 0.38 — a capture gap of 0.20 — and the adversary moves 237 units of value undetected.
 
 ## 1. Introduction
 
@@ -8,7 +8,9 @@ AI control protocols rely on trusted monitors to catch unsafe agent behavior. Th
 
 We argue there is an extra axis that current evaluations miss: robustness to monitor capture. When a monitor updates on observed agent behavior, the agent's actions gradually define what "normal" looks like. Successful evasions enter the monitor's training pool labeled as benign, shifting its decision boundary. The monitor becomes well-calibrated on attacks it has already seen, and increasingly blind to anything new.
 
-This vulnerability is structural. We ground it in the Myerson-Satterthwaite impossibility theorem [2], which we argue extends to control protocols: no protocol can simultaneously maximize safety, usefulness, computational feasibility, and robustness to capture (see §5 for the full analogy).
+Think of a fraud detector that learns which transactions to flag by studying past fraud. If a fraudster behaves "normally" long enough, their transactions get labeled as benign and enter the detector's training data — teaching it to accept exactly what they're doing. The same dynamic applies to any monitor that learns from the environment it supervises.
+
+This vulnerability is structural. We ground it in the Myerson-Satterthwaite impossibility theorem [2] — a foundational result proving that no mechanism can simultaneously satisfy all desirable properties; something must always be sacrificed. We argue this extends to control protocols: no protocol can simultaneously maximize safety, usefulness, computational feasibility, and robustness to capture (see §5 for the full analogy).
 
 We test this empirically with a multi-agent marketplace simulation where an adversarial LLM agent tries to move value past an in-context learning monitor over 10 rounds, and a fixed held-out attack set provides an uncontaminated measure of true detection capability.
 
@@ -72,7 +74,9 @@ We run the simulation across 8 random seeds (42, 123, 456, 321, 555, 777, 888, 9
 
 ## 4. Results
 
-Figure 1 shows the three metrics over 10 rounds, averaged across 8 seeds with standard deviation bands.
+Across 10 rounds, apparent safety climbs while true safety plateaus — producing a persistent gap that widens as the monitor overfits to what it has seen. Figure 1 shows all three metrics averaged across 8 seeds with standard deviation bands.
+
+![Figure 1: Metric trajectories over 10 rounds](results/anthropic--claude-haiku-4.5/0/results.png)
 
 *Figure 1: Haiku 4.5 monitor vs Sonnet 4.6 adversary, averaged over 8 seeds. Apparent safety (red) rises to ~0.58, true safety (orange) plateaus at ~0.38, and usefulness (blue) stays at 1.0 throughout. The shaded regions show one standard deviation. The capture gap stabilizes at 0.20 by round 9.*
 
@@ -108,7 +112,9 @@ This applies to any control setup where the monitor learns from the environment 
 
 ### Connection to Myerson-Satterthwaite
 
-Our results provide empirical support for this analogy. The Myerson-Satterthwaite theorem proves that no bilateral trade mechanism can simultaneously achieve efficiency, incentive compatibility, individual rationality, and budget balance. We map these onto control protocol properties: safety, usefulness, feasibility, and robustness to capture. Our monitor achieves reasonable apparent safety and perfect usefulness within its feasibility constraints (60-example context window) but sacrifices robustness. This does not mean monitoring is hopeless — it means the capture dimension should be measured explicitly rather than ignored.
+To make the analogy concrete: imagine designing a used-car market. You want four things — deals happen whenever they should (efficiency), neither party lies about the car's value (honesty/incentive compatibility), no one is forced to participate (voluntary/individual rationality), and the market runs without outside subsidies (self-funding/budget balance). Myerson and Satterthwaite (1983) proved that no mechanism can guarantee all four simultaneously. One property must always be sacrificed.
+
+Our results provide empirical support for this analogy applied to control protocols. The Myerson-Satterthwaite theorem proves that no bilateral trade mechanism can simultaneously achieve efficiency, incentive compatibility, individual rationality, and budget balance. We map these onto control protocol properties: safety, usefulness, feasibility, and robustness to capture. Our monitor achieves reasonable apparent safety and perfect usefulness within its feasibility constraints (60-example context window) but sacrifices robustness. This does not mean monitoring is hopeless — it means the capture dimension should be measured explicitly rather than ignored.
 
 ### Limitations
 
