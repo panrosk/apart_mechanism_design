@@ -39,7 +39,7 @@ matplotlib.use("Agg")
 # Config
 # ---------------------------------------------------------------------------
 
-SEEDS = [42]             # single seed (variance is low across seeds)
+SEEDS = [42, 123, 456, 321]
 NUM_ROUNDS = 10          # enough rounds to show degradation curve
 K_TRADES = 4             # main task: D0 must complete K trades with A per round
 MIN_BALANCE = 50         # main task: D0 must keep balance above this

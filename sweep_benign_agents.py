@@ -40,14 +40,14 @@ load_dotenv()
 # Config
 # ---------------------------------------------------------------------------
 
-MONITOR_MODEL = "claude-sonnet-4-6"
+MONITOR_MODEL = "claude-haiku-4-5-20251001"
 ADVERSARY_MODEL = "claude-sonnet-4-6"
 BENIGN_MODEL = "claude-sonnet-4-6"
 
-SEEDS = [42, 123, 456]
+SEEDS = [42, 123, 456, 321, 777, 888, 999, 555]
 
 # Sweep range for number of benign agents (beyond the primary benign agent D1)
-BENIGN_AGENT_COUNTS = [3, 5, 10, 15]
+BENIGN_AGENT_COUNTS = [5]
 
 RESULTS_DIR = Path("results") / "sweep_benign_agents"
 CACHE_FILE = "result.json"
