@@ -97,15 +97,52 @@ class RoundMetrics:
 RESULTS_DIR = Path("results")
 
 
-def _make_run_dir(model: str) -> Path:
-    """Create results/{model_name}/{N}/ with auto-incrementing N."""
-    model_dir = RESULTS_DIR / model.replace("/", "--")
-    model_dir.mkdir(parents=True, exist_ok=True)
-    existing = [int(d.name) for d in model_dir.iterdir() if d.is_dir() and d.name.isdigit()]
-    run_num = max(existing, default=-1) + 1
-    run_dir = model_dir / str(run_num)
-    run_dir.mkdir()
+METRICS_CACHE_FILE = "metrics.json"
+
+
+def _make_run_dir(model: str, seed: int) -> Path:
+    """Create results/{model_name}/seed_{seed}/."""
+    run_dir = RESULTS_DIR / model.replace("/", "--") / f"seed_{seed}"
+    run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
+
+
+def _save_metrics(run_dir: Path, metrics: list[RoundMetrics]):
+    """Save round metrics to JSON for caching."""
+    data = [
+        {
+            "round": m.round,
+            "apparent_safety": m.apparent_safety,
+            "usefulness": m.usefulness,
+            "true_safety": m.true_safety,
+        }
+        for m in metrics
+    ]
+    with open(run_dir / METRICS_CACHE_FILE, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def _load_cached_metrics(run_dir: Path) -> list[RoundMetrics] | None:
+    """Load cached metrics if they exist and have the expected number of rounds."""
+    cache_path = run_dir / METRICS_CACHE_FILE
+    if not cache_path.exists():
+        return None
+    try:
+        with open(cache_path) as f:
+            data = json.load(f)
+        if len(data) != NUM_ROUNDS:
+            return None
+        return [
+            RoundMetrics(
+                round=d["round"],
+                apparent_safety=d["apparent_safety"],
+                usefulness=d["usefulness"],
+                true_safety=d["true_safety"],
+            )
+            for d in data
+        ]
+    except (json.JSONDecodeError, KeyError):
+        return None
 
 
 def log_llm_call(conversations_file: str, role: str, round_num: int, prompt: str, response: str):
@@ -644,11 +681,16 @@ def plot_results(metrics: list[RoundMetrics], output_dir: Path):
 # ---------------------------------------------------------------------------
 
 def run_single_seed(args: tuple[str, int]) -> tuple[str, int, list[RoundMetrics] | None]:
-    """Run one (model, seed) pair. Returns (model, seed, metrics)."""
+    """Run one (model, seed) pair. Returns cached result if available."""
     model, seed = args
+    run_dir = _make_run_dir(model, seed)
+    cached = _load_cached_metrics(run_dir)
+    if cached is not None:
+        print(f"\n[{model}] seed={seed} — loaded from cache ({run_dir})")
+        return (model, seed, cached)
     try:
         print(f"\n[{model}] ===== SEED {seed} =====")
-        metrics = _run_simulation_inner(model, seed)
+        metrics = _run_simulation_inner(model, seed, run_dir)
         return (model, seed, metrics)
     except Exception as e:
         print(f"[{model}] seed={seed} FAILED: {type(e).__name__}: {e}")
@@ -697,7 +739,7 @@ def aggregate_model_results(model: str, seed_metrics: list[list[RoundMetrics]]):
     plot_aggregated_results(n_rounds, agg_apparent, agg_true, agg_useful, agg_gap, model_dir, model)
 
 
-def _run_simulation_inner(model: str, seed: int) -> list[RoundMetrics] | None:
+def _run_simulation_inner(model: str, seed: int, run_dir: Path) -> list[RoundMetrics] | None:
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
@@ -707,7 +749,6 @@ def _run_simulation_inner(model: str, seed: int) -> list[RoundMetrics] | None:
         api_key=api_key,
     )
 
-    run_dir = _make_run_dir(model)
     conversations_file = str(run_dir / "conversations.jsonl")
     print(f"[{model}] Output directory: {run_dir} (seed={seed})")
 
@@ -794,6 +835,9 @@ def _run_simulation_inner(model: str, seed: int) -> list[RoundMetrics] | None:
     # Per-seed plot
     plot_results(all_metrics, run_dir)
     print(f"\n[{model}] seed={seed} log written to {conversations_file}")
+
+    # Cache metrics for future runs
+    _save_metrics(run_dir, all_metrics)
 
     return all_metrics
 
