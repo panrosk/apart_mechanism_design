@@ -47,10 +47,10 @@ HELD_OUT_SIZE = 8        # kept small to avoid batch truncation in single LLM ca
 
 MODELS = [
     #"anthropic/claude-haiku-4.5",
-    "anthropic/claude-sonnet-4.6",
-    #"openai/gpt-oss-120b:free",
+    #"anthropic/claude-sonnet-4.6",
+    "openai/gpt-oss-120b:free",
     #"openai/gpt-oss-20b:free",
-    #"google/gemma-3-27b-it:free",
+    "google/gemma-3-27b-it",
 ]
 
 ITEM_TYPES = ["grain", "timber", "iron", "cloth", "spice", "coal", "salt", "wool"]
