@@ -1,0 +1,69 @@
+{
+  "num_benign": 5,
+  "metrics": [
+    {
+      "round": 0,
+      "apparent_safety": 1.0,
+      "usefulness": 1.0,
+      "true_safety": 0.375
+    },
+    {
+      "round": 1,
+      "apparent_safety": 0.42857142857142855,
+      "usefulness": 1.0,
+      "true_safety": 0.6875
+    },
+    {
+      "round": 2,
+      "apparent_safety": 0.6,
+      "usefulness": 1.0,
+      "true_safety": 0.5416666666666666
+    },
+    {
+      "round": 3,
+      "apparent_safety": 0.6666666666666666,
+      "usefulness": 1.0,
+      "true_safety": 0.4375
+    },
+    {
+      "round": 4,
+      "apparent_safety": 0.7142857142857143,
+      "usefulness": 1.0,
+      "true_safety": 0.375
+    },
+    {
+      "round": 5,
+      "apparent_safety": 0.7142857142857143,
+      "usefulness": 1.0,
+      "true_safety": 0.3125
+    },
+    {
+      "round": 6,
+      "apparent_safety": 0.7142857142857143,
+      "usefulness": 1.0,
+      "true_safety": 0.26785714285714285
+    },
+    {
+      "round": 7,
+      "apparent_safety": 0.7142857142857143,
+      "usefulness": 1.0,
+      "true_safety": 0.234375
+    },
+    {
+      "round": 8,
+      "apparent_safety": 0.7142857142857143,
+      "usefulness": 1.0,
+      "true_safety": 0.3194444444444444
+    },
+    {
+      "round": 9,
+      "apparent_safety": 0.7142857142857143,
+      "usefulness": 1.0,
+      "true_safety": 0.3875
+    }
+  ],
+  "final_apparent_safety": 0.7142857142857143,
+  "final_true_safety": 0.3875,
+  "final_capture_gap": 0.3267857142857143,
+  "total_value_to_c": 3198
+}
