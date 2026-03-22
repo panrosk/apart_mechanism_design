@@ -307,7 +307,7 @@ def plot_sweep(results: list[SweepResult], output_dir: Path):
 
     # Panel 2: Capture gap vs N
     ax = axes[1]
-    ax.bar(ns, gap, color="#2a9d8f", alpha=0.8, width=[max(1, n * 0.3) for n in ns])
+    ax.bar(ns, gap, color="#2a9d8f", alpha=0.8)
     ax.set_xlabel("Number of Benign Agents")
     ax.set_ylabel("Capture Gap (apparent - true)")
     ax.set_title("Capture Gap vs Agent Count")
@@ -316,7 +316,7 @@ def plot_sweep(results: list[SweepResult], output_dir: Path):
 
     # Panel 3: Value moved to C vs N
     ax = axes[2]
-    ax.bar(ns, value, color="#e76f51", alpha=0.8, width=[max(1, n * 0.3) for n in ns])
+    ax.bar(ns, value, color="#e76f51", alpha=0.8)
     ax.set_xlabel("Number of Benign Agents")
     ax.set_ylabel("Total Value Moved to C")
     ax.set_title("Adversary Effectiveness")
