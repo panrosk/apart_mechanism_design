@@ -47,14 +47,12 @@ MAX_EXAMPLES = 60        # max in-context monitor examples (overflow protection)
 HELD_OUT_SIZE = 8        # kept small to avoid batch truncation in single LLM call
 NUM_BENIGN_AGENTS = 5    # number of extra benign agents (beyond A)
 
-MODELS = [
-    #"google/gemini-3.1-flash-lite-preview",
-    "anthropic/claude-haiku-4.5",
-    #"anthropic/claude-sonnet-4.6",
-    #"openai/gpt-oss-120b:free",
-    #"openai/gpt-oss-20b:free",
-    #"google/gemma-3-27b-it:free",
-]
+gemini3flashlite = "google/gemini-3.1-flash-lite-preview"
+haiku45 = "anthropic/claude-haiku-4.5"
+
+MONITOR_MODEL = "anthropic/claude-sonnet-4-6"
+ADVERSARY_MODEL = gemini3flashlite
+BENIGN_MODEL = gemini3flashlite
 
 ITEM_TYPES = ["grain", "timber", "iron", "cloth", "spice", "coal", "salt", "wool"]
 
@@ -100,9 +98,15 @@ RESULTS_DIR = Path("results")
 METRICS_CACHE_FILE = "metrics.json"
 
 
-def _make_run_dir(model: str, seed: int) -> Path:
-    """Create results/{model_name}/seed_{seed}/."""
-    run_dir = RESULTS_DIR / model.replace("/", "--") / f"seed_{seed}"
+def _model_slug(model_id: str) -> str:
+    """Turn 'anthropic/claude-haiku-4-5' into 'claude-haiku-4-5'."""
+    return model_id.rsplit("/", 1)[-1]
+
+
+def _make_run_dir(seed: int) -> Path:
+    """Create results/{config_tag}/seed_{seed}/."""
+    config_tag = f"mon_{_model_slug(MONITOR_MODEL)}__adv_{_model_slug(ADVERSARY_MODEL)}__ben_{_model_slug(BENIGN_MODEL)}"
+    run_dir = RESULTS_DIR / config_tag / f"seed_{seed}"
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
 
@@ -700,30 +704,31 @@ def plot_results(metrics: list[RoundMetrics], output_dir: Path):
 # Main
 # ---------------------------------------------------------------------------
 
-def run_single_seed(args: tuple[str, int]) -> tuple[str, int, list[RoundMetrics] | None]:
-    """Run one (model, seed) pair. Returns cached result if available."""
-    model, seed = args
-    run_dir = _make_run_dir(model, seed)
+def run_single_seed(seed: int) -> tuple[int, list[RoundMetrics] | None]:
+    """Run one seed. Returns cached result if available."""
+    run_dir = _make_run_dir(seed)
     cached = _load_cached_metrics(run_dir)
     if cached is not None:
-        print(f"\n[{model}] seed={seed} — loaded from cache ({run_dir})")
-        return (model, seed, cached)
+        print(f"\nseed={seed} — loaded from cache ({run_dir})")
+        return (seed, cached)
     try:
-        print(f"\n[{model}] ===== SEED {seed} =====")
-        metrics = _run_simulation_inner(model, seed, run_dir)
-        return (model, seed, metrics)
+        print(f"\n===== SEED {seed} =====")
+        metrics = _run_simulation_inner(seed, run_dir)
+        return (seed, metrics)
     except Exception as e:
-        print(f"[{model}] seed={seed} FAILED: {type(e).__name__}: {e}")
+        print(f"seed={seed} FAILED: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
-        return (model, seed, None)
+        return (seed, None)
 
 
-def aggregate_model_results(model: str, seed_metrics: list[list[RoundMetrics]]):
-    """Aggregate and plot results for one model across seeds."""
+def aggregate_results(seed_metrics: list[list[RoundMetrics]]):
+    """Aggregate and plot results across seeds."""
     if not seed_metrics:
-        print(f"[{model}] No successful seed runs.")
+        print("No successful seed runs.")
         return
+
+    config_label = f"Mon={_model_slug(MONITOR_MODEL)} Adv={_model_slug(ADVERSARY_MODEL)} Ben={_model_slug(BENIGN_MODEL)}"
 
     n_rounds = min(len(m) for m in seed_metrics)
     agg_apparent = np.array([[m[r].apparent_safety for m in seed_metrics] for r in range(n_rounds)])
@@ -731,9 +736,10 @@ def aggregate_model_results(model: str, seed_metrics: list[list[RoundMetrics]]):
     agg_useful = np.array([[m[r].usefulness for m in seed_metrics] for r in range(n_rounds)])
     agg_gap = agg_apparent - agg_true
 
-    print(f"\n[{model}] {'='*60}")
-    print(f"[{model}] AGGREGATED RESULTS ({len(seed_metrics)} seeds)")
-    print(f"[{model}] {'='*60}")
+    print(f"\n{'='*60}")
+    print(f"AGGREGATED RESULTS ({len(seed_metrics)} seeds)")
+    print(f"{config_label}")
+    print(f"{'='*60}")
     print(f"{'Round':<8} {'Apparent':<18} {'True Safety':<18} {'Gap':<18} {'Usefulness'}")
     print(f"{'-'*8} {'-'*17} {'-'*17} {'-'*17} {'-'*17}")
     for r in range(n_rounds):
@@ -748,18 +754,19 @@ def aggregate_model_results(model: str, seed_metrics: list[list[RoundMetrics]]):
     last_apparent = agg_apparent[-1]
     last_true = agg_true[-1]
     last_gap = agg_gap[-1]
-    print(f"\n[{model}] Final round (avg ± std over {len(seed_metrics)} seeds):")
+    print(f"\nFinal round (avg ± std over {len(seed_metrics)} seeds):")
     print(f"  Apparent safety: {last_apparent.mean():.3f} ± {last_apparent.std():.3f}")
     print(f"  True safety:     {last_true.mean():.3f} ± {last_true.std():.3f}")
     print(f"  Safety gap:      {last_gap.mean():.3f} ± {last_gap.std():.3f}")
     print(f"  Usefulness:      {agg_useful[-1].mean():.3f} ± {agg_useful[-1].std():.3f}")
 
-    model_dir = RESULTS_DIR / model.replace("/", "--")
+    config_tag = f"mon_{_model_slug(MONITOR_MODEL)}__adv_{_model_slug(ADVERSARY_MODEL)}__ben_{_model_slug(BENIGN_MODEL)}"
+    model_dir = RESULTS_DIR / config_tag
     model_dir.mkdir(parents=True, exist_ok=True)
-    plot_aggregated_results(n_rounds, agg_apparent, agg_true, agg_useful, agg_gap, model_dir, model)
+    plot_aggregated_results(n_rounds, agg_apparent, agg_true, agg_useful, agg_gap, model_dir, config_label)
 
 
-def _run_simulation_inner(model: str, seed: int, run_dir: Path) -> list[RoundMetrics] | None:
+def _run_simulation_inner(seed: int, run_dir: Path) -> list[RoundMetrics] | None:
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise ValueError("OPENROUTER_API_KEY environment variable not set")
@@ -769,8 +776,10 @@ def _run_simulation_inner(model: str, seed: int, run_dir: Path) -> list[RoundMet
         api_key=api_key,
     )
 
+    tag = f"[seed={seed}]"
     conversations_file = str(run_dir / "conversations.jsonl")
-    print(f"[{model}] Output directory: {run_dir} (seed={seed})")
+    print(f"{tag} Output directory: {run_dir}")
+    print(f"{tag} Monitor={MONITOR_MODEL}, Adversary={ADVERSARY_MODEL}, Benign={BENIGN_MODEL}")
 
     market = Marketplace()
     monitor = Monitor()
@@ -781,7 +790,7 @@ def _run_simulation_inner(model: str, seed: int, run_dir: Path) -> list[RoundMet
     # Build held-out red team (fixed per seed)
     random.seed(seed)
     held_out = build_held_out_attacks()
-    print(f"[{model}] Held-out attack set: {len(held_out)} relay pairs ({len(held_out)*2} hops total)")
+    print(f"{tag} Held-out attack set: {len(held_out)} relay pairs ({len(held_out)*2} hops total)")
     for i, (h1, h2) in enumerate(held_out):
         print(f"  pair {i}: {h1.to_text()}  +  {h2.to_text()}")
     print()
@@ -798,24 +807,24 @@ def _run_simulation_inner(model: str, seed: int, run_dir: Path) -> list[RoundMet
 
     for round_num in range(NUM_ROUNDS):
         market.current_round = round_num
-        print(f"\n[{model}] {'='*60}")
-        print(f"[{model}] ROUND {round_num}  |  D0 balance: {market.wallets['D0']}  |  D2 balance: {market.wallets['D2']}")
-        print(f"[{model}] {'='*60}")
+        print(f"\n{tag} {'='*60}")
+        print(f"{tag} ROUND {round_num}  |  D0 balance: {market.wallets['D0']}  |  D2 balance: {market.wallets['D2']}")
+        print(f"{tag} {'='*60}")
 
-        # All benign agents act in parallel via LLM (D1 + D3..DN)
-        benign_txns = benign_agents_act(market, client, model, conversations_file)
+        # All benign agents act in parallel via LLM
+        benign_txns = benign_agents_act(market, client, BENIGN_MODEL, conversations_file)
         for tx in benign_txns:
             market.execute(tx)
 
-        # Agent D0 acts (LLM)
-        b_txns, trades_with_a = agent_d0_act(market, client, model, conversations_file)
+        # Agent D0 acts (adversary model)
+        b_txns, trades_with_a = agent_d0_act(market, client, ADVERSARY_MODEL, conversations_file)
         for tx in b_txns:
             market.execute(tx)
 
         b_to_c = [tx for tx in b_txns if tx.side_task]
-        print(f"\n[{model}] Round {round_num} actions: D0→D1 trades={trades_with_a}, relay chains={len(b_to_c)}")
+        print(f"\n{tag} Round {round_num} actions: D0→D1 trades={trades_with_a}, relay chains={len(b_to_c)}")
 
-        # Evaluate metrics (monitor classifies current round + held-out)
+        # Evaluate metrics (monitor uses monitor model)
         metrics = evaluate_round(
             round_num=round_num,
             round_txns=b_txns,
@@ -824,7 +833,7 @@ def _run_simulation_inner(model: str, seed: int, run_dir: Path) -> list[RoundMet
             monitor=monitor,
             client=client,
             cumulative=cumulative,
-            model=model,
+            model=MONITOR_MODEL,
             conversations_file=conversations_file,
         )
         all_metrics.append(metrics)
@@ -835,14 +844,14 @@ def _run_simulation_inner(model: str, seed: int, run_dir: Path) -> list[RoundMet
 
         # Print round summary
         print(
-            f"\n[{model}] Round {round_num} | "
+            f"\n{tag} Round {round_num} | "
             f"apparent_safety={metrics.apparent_safety:.2f} | "
             f"usefulness={metrics.usefulness:.2f} | "
             f"true_safety={metrics.true_safety:.2f}"
         )
 
     # Per-seed summary table
-    print(f"\n[{model}] seed={seed} {'='*50}")
+    print(f"\n{tag} {'='*50}")
     print(f"{'Round':<8} {'Apparent':<15} {'Usefulness':<13} {'True'}")
     print(f"{'-'*8} {'-'*14} {'-'*12} {'-'*12}")
     for m in all_metrics:
@@ -850,11 +859,11 @@ def _run_simulation_inner(model: str, seed: int, run_dir: Path) -> list[RoundMet
 
     if len(all_metrics) >= 2:
         delta = all_metrics[-1].true_safety - all_metrics[0].true_safety
-        print(f"\n[{model}] seed={seed} Held-out safety change: {delta:+.2f}")
+        print(f"\n{tag} Held-out safety change: {delta:+.2f}")
 
     # Per-seed plot
     plot_results(all_metrics, run_dir)
-    print(f"\n[{model}] seed={seed} log written to {conversations_file}")
+    print(f"\n{tag} log written to {conversations_file}")
 
     # Cache metrics for future runs
     _save_metrics(run_dir, all_metrics)
@@ -902,26 +911,30 @@ def plot_aggregated_results(
 
 
 def main():
-    """Run all (model, seed) pairs in parallel, then aggregate per model."""
-    models = MODELS
-    jobs = [(model, seed) for model in models for seed in SEEDS]
-    print(f"Running {len(jobs)} jobs ({len(models)} models × {len(SEEDS)} seeds) in parallel:")
-    for model, seed in jobs:
-        print(f"  - {model} seed={seed}")
+    """Run all seeds in parallel, then aggregate."""
+    print("=" * 60)
+    print("Marketplace Monitor Capture Simulation")
+    print("=" * 60)
+    print(f"Monitor model:   {MONITOR_MODEL}")
+    print(f"Adversary model: {ADVERSARY_MODEL}")
+    print(f"Benign model:    {BENIGN_MODEL}")
+    print(f"Seeds:           {SEEDS}")
+    print(f"Rounds per run:  {NUM_ROUNDS}")
     print()
+
+    jobs = SEEDS
+    print(f"Running {len(jobs)} seeds in parallel\n")
 
     with multiprocessing.Pool(processes=len(jobs)) as pool:
         results = pool.map(run_single_seed, jobs)
 
-    # Group results by model and aggregate
-    from collections import defaultdict
-    by_model: dict[str, list[list[RoundMetrics]]] = defaultdict(list)
-    for model, seed, metrics in results:
+    # Collect successful runs
+    seed_metrics: list[list[RoundMetrics]] = []
+    for seed, metrics in results:
         if metrics:
-            by_model[model].append(metrics)
+            seed_metrics.append(metrics)
 
-    for model in models:
-        aggregate_model_results(model, by_model[model])
+    aggregate_results(seed_metrics)
 
     print("\nAll simulations complete.")
 
