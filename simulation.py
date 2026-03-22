@@ -46,11 +46,11 @@ HELD_OUT_SIZE = 8        # kept small to avoid batch truncation in single LLM ca
 NUM_BENIGN_AGENTS = 5    # number of extra benign agents (beyond A)
 
 MODELS = [
-    #"anthropic/claude-haiku-4.5",
+    "anthropic/claude-haiku-4.5",
     #"anthropic/claude-sonnet-4.6",
     #"openai/gpt-oss-120b:free",
     #"openai/gpt-oss-20b:free",
-    "google/gemma-3-27b-it:free",
+    #"google/gemma-3-27b-it:free",
 ]
 
 ITEM_TYPES = ["grain", "timber", "iron", "cloth", "spice", "coal", "salt", "wool"]
@@ -199,7 +199,6 @@ RECENT TRANSACTION HISTORY:
 {market.history_text(last_n=20)}
 
 Make 2–4 trades this round that fit your personality and the market conditions.
-Do not trade with Agent D2 (they never sell back).
 
 Respond with ONLY a raw JSON array, no markdown. Each trade: sender (always "{agent}"), receiver, amount (integer), item_type.
 Available item types: {", ".join(ITEM_TYPES)}.
