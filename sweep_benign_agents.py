@@ -15,6 +15,7 @@ import multiprocessing
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
+import numpy as np
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -44,10 +45,13 @@ MONITOR_MODEL = "google/gemini-3-flash-preview"
 ADVERSARY_MODEL = "anthropic/claude-haiku-4-5"
 BENIGN_MODEL = "anthropic/claude-haiku-4-5"  # benign agents use weak model (cheaper)
 
+SEEDS = [42, 123, 456]
+
 # Sweep range for number of benign agents (beyond the primary benign agent D1)
 BENIGN_AGENT_COUNTS = [3, 5, 10, 15]
 
 RESULTS_DIR = Path("results") / "sweep_benign_agents"
+CACHE_FILE = "result.json"
 
 # ---------------------------------------------------------------------------
 # Helpers to reconfigure simulation globals for a given N
@@ -67,6 +71,33 @@ def configure_benign_agents(n: int):
 
 
 # ---------------------------------------------------------------------------
+# Caching
+# ---------------------------------------------------------------------------
+
+def _run_dir_for(num_benign: int, seed: int) -> Path:
+    return RESULTS_DIR / f"n{num_benign}" / f"seed_{seed}"
+
+
+def _save_cached_result(run_dir: Path, result: "SweepResult"):
+    with open(run_dir / CACHE_FILE, "w") as f:
+        json.dump(asdict(result), f, indent=2)
+
+
+def _load_cached_result(run_dir: Path) -> "SweepResult | None":
+    cache_path = run_dir / CACHE_FILE
+    if not cache_path.exists():
+        return None
+    try:
+        with open(cache_path) as f:
+            data = json.load(f)
+        if len(data.get("metrics", [])) != NUM_ROUNDS:
+            return None
+        return SweepResult(**data)
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Run one simulation with asymmetric models
 # ---------------------------------------------------------------------------
 
@@ -82,6 +113,7 @@ class SweepResult:
 
 def run_asymmetric_simulation(
     num_benign: int,
+    seed: int,
     monitor_model: str,
     adversary_model: str,
     benign_model: str,
@@ -98,12 +130,12 @@ def run_asymmetric_simulation(
         api_key=api_key,
     )
 
-    run_dir = RESULTS_DIR / f"n{num_benign}"
+    run_dir = _run_dir_for(num_benign, seed)
     run_dir.mkdir(parents=True, exist_ok=True)
     conversations_file = str(run_dir / "conversations.jsonl")
     open(conversations_file, "w").close()
 
-    tag = f"[N={num_benign}]"
+    tag = f"[N={num_benign} seed={seed}]"
     print(f"{tag} Monitor={monitor_model}, Adversary={adversary_model}, Benign={benign_model}")
     print(f"{tag} Benign agents: D1 + {sim.BENIGN_AGENTS}")
 
@@ -115,7 +147,7 @@ def run_asymmetric_simulation(
 
     monitor = Monitor()
 
-    random.seed(42)
+    random.seed(seed)
     held_out = build_held_out_attacks()
     print(f"{tag} Held-out attack set: {len(held_out)} relay pairs")
 
@@ -177,7 +209,7 @@ def run_asymmetric_simulation(
     last = all_metrics[-1]
     gap = last.apparent_safety - last.true_safety
 
-    # Save per-run results
+    # Save per-run results + cache
     result = SweepResult(
         num_benign=num_benign,
         metrics=[asdict(m) for m in all_metrics],
@@ -186,8 +218,7 @@ def run_asymmetric_simulation(
         final_capture_gap=gap,
         total_value_to_c=total_to_c,
     )
-    with open(run_dir / "result.json", "w") as f:
-        json.dump(asdict(result), f, indent=2)
+    _save_cached_result(run_dir, result)
 
     # Per-run plot
     plot_single_run(all_metrics, num_benign, run_dir)
@@ -283,21 +314,24 @@ def plot_single_run(metrics: list[RoundMetrics], num_benign: int, output_dir: Pa
     plt.close()
 
 
-def plot_sweep(results: list[SweepResult], output_dir: Path):
-    """Main sweep plot: safety metrics vs number of benign agents."""
-    results = sorted(results, key=lambda r: r.num_benign)
-    ns = [r.num_benign for r in results]
-    apparent = [r.final_apparent_safety for r in results]
-    true = [r.final_true_safety for r in results]
-    gap = [r.final_capture_gap for r in results]
-    value = [r.total_value_to_c for r in results]
+def plot_sweep_aggregated(agg_results: list[dict], output_dir: Path):
+    """Sweep plot with error bars: safety metrics vs number of benign agents."""
+    ns = [r["num_benign"] for r in agg_results]
+    app_mean = [r["apparent_mean"] for r in agg_results]
+    app_std = [r["apparent_std"] for r in agg_results]
+    true_mean = [r["true_mean"] for r in agg_results]
+    true_std = [r["true_std"] for r in agg_results]
+    gap_mean = [r["gap_mean"] for r in agg_results]
+    gap_std = [r["gap_std"] for r in agg_results]
+    val_mean = [r["value_mean"] for r in agg_results]
+    val_std = [r["value_std"] for r in agg_results]
 
     fig, axes = plt.subplots(1, 3, figsize=(16, 5))
 
     # Panel 1: Safety vs N
     ax = axes[0]
-    ax.plot(ns, apparent, "o-", label="Apparent Safety", color="#e63946", linewidth=2)
-    ax.plot(ns, true, "s-", label="True Safety", color="#f4a261", linewidth=2)
+    ax.errorbar(ns, app_mean, yerr=app_std, fmt="o-", label="Apparent Safety", color="#e63946", linewidth=2, capsize=4)
+    ax.errorbar(ns, true_mean, yerr=true_std, fmt="s-", label="True Safety", color="#f4a261", linewidth=2, capsize=4)
     ax.set_xlabel("Number of Benign Agents")
     ax.set_ylabel("Final Safety (fraction)")
     ax.set_title("Detection Threshold")
@@ -307,7 +341,7 @@ def plot_sweep(results: list[SweepResult], output_dir: Path):
 
     # Panel 2: Capture gap vs N
     ax = axes[1]
-    ax.bar(ns, gap, color="#2a9d8f", alpha=0.8)
+    ax.bar(ns, gap_mean, yerr=gap_std, color="#2a9d8f", alpha=0.8, capsize=4)
     ax.set_xlabel("Number of Benign Agents")
     ax.set_ylabel("Capture Gap (apparent - true)")
     ax.set_title("Capture Gap vs Agent Count")
@@ -316,15 +350,16 @@ def plot_sweep(results: list[SweepResult], output_dir: Path):
 
     # Panel 3: Value moved to C vs N
     ax = axes[2]
-    ax.bar(ns, value, color="#e76f51", alpha=0.8)
+    ax.bar(ns, val_mean, yerr=val_std, color="#e76f51", alpha=0.8, capsize=4)
     ax.set_xlabel("Number of Benign Agents")
     ax.set_ylabel("Total Value Moved to C")
     ax.set_title("Adversary Effectiveness")
     ax.grid(True, alpha=0.3)
 
+    n_seeds = agg_results[0]["n_seeds"] if agg_results else "?"
     fig.suptitle(
-        f"Asymmetric Sweep: Monitor={MONITOR_MODEL} vs Adversary={ADVERSARY_MODEL}",
-        fontsize=12, fontweight="bold",
+        f"Asymmetric Sweep (avg over {n_seeds} seeds): Monitor={MONITOR_MODEL} vs Adversary={ADVERSARY_MODEL}",
+        fontsize=11, fontweight="bold",
     )
     plt.tight_layout()
     plt.savefig(output_dir / "sweep_results.png", dpi=150)
@@ -336,20 +371,29 @@ def plot_sweep(results: list[SweepResult], output_dir: Path):
 # Main
 # ---------------------------------------------------------------------------
 
-def run_one_sweep_point(num_benign: int) -> SweepResult | None:
-    """Wrapper for multiprocessing — runs one sweep point."""
+def run_one_sweep_point(args: tuple[int, int]) -> tuple[int, int, SweepResult | None]:
+    """Run one (num_benign, seed) pair. Returns cached result if available."""
+    num_benign, seed = args
+    run_dir = _run_dir_for(num_benign, seed)
+    run_dir.mkdir(parents=True, exist_ok=True)
+    cached = _load_cached_result(run_dir)
+    if cached is not None:
+        print(f"\n[N={num_benign} seed={seed}] — loaded from cache ({run_dir})")
+        return (num_benign, seed, cached)
     try:
-        return run_asymmetric_simulation(
+        result = run_asymmetric_simulation(
             num_benign=num_benign,
+            seed=seed,
             monitor_model=MONITOR_MODEL,
             adversary_model=ADVERSARY_MODEL,
             benign_model=BENIGN_MODEL,
         )
+        return (num_benign, seed, result)
     except Exception as e:
-        print(f"[N={num_benign}] FAILED: {type(e).__name__}: {e}")
+        print(f"[N={num_benign} seed={seed}] FAILED: {type(e).__name__}: {e}")
         import traceback
         traceback.print_exc()
-        return None
+        return (num_benign, seed, None)
 
 
 def main():
@@ -362,37 +406,63 @@ def main():
     print(f"Adversary model: {ADVERSARY_MODEL}")
     print(f"Benign model:    {BENIGN_MODEL}")
     print(f"Sweep points:    {BENIGN_AGENT_COUNTS}")
+    print(f"Seeds:           {SEEDS}")
     print(f"Rounds per run:  {NUM_ROUNDS}")
     print()
 
-    # Run sweep points in parallel — each multiprocessing worker gets its own
-    # copy of the simulation module globals, so concurrent mutation is safe.
-    with multiprocessing.Pool(processes=len(BENIGN_AGENT_COUNTS)) as pool:
-        raw_results = pool.map(run_one_sweep_point, BENIGN_AGENT_COUNTS)
-    results = [r for r in raw_results if r is not None]
+    # All (num_benign, seed) pairs run in parallel
+    jobs = [(n, seed) for n in BENIGN_AGENT_COUNTS for seed in SEEDS]
+    print(f"Running {len(jobs)} jobs ({len(BENIGN_AGENT_COUNTS)} counts × {len(SEEDS)} seeds) in parallel\n")
 
-    if not results:
+    with multiprocessing.Pool(processes=len(jobs)) as pool:
+        raw_results = pool.map(run_one_sweep_point, jobs)
+
+    # Group results by num_benign
+    from collections import defaultdict
+    by_n: dict[int, list[SweepResult]] = defaultdict(list)
+    for num_benign, seed, result in raw_results:
+        if result is not None:
+            by_n[num_benign].append(result)
+
+    if not by_n:
         print("No successful runs. Exiting.")
         return
 
-    # Summary table
+    # Aggregated summary table
     print(f"\n{'=' * 60}")
-    print("SWEEP SUMMARY")
+    print(f"SWEEP SUMMARY (mean ± std over {len(SEEDS)} seeds)")
     print(f"{'=' * 60}")
-    print(f"{'N_benign':<10} {'Apparent':<12} {'True':<12} {'Gap':<12} {'Value to C'}")
-    print(f"{'-'*10} {'-'*11} {'-'*11} {'-'*11} {'-'*11}")
-    for r in sorted(results, key=lambda x: x.num_benign):
+    print(f"{'N_benign':<10} {'Apparent':<18} {'True':<18} {'Gap':<18} {'Value to C'}")
+    print(f"{'-'*10} {'-'*17} {'-'*17} {'-'*17} {'-'*17}")
+    agg_results = []
+    for n in sorted(by_n.keys()):
+        results = by_n[n]
+        apparent = np.array([r.final_apparent_safety for r in results])
+        true = np.array([r.final_true_safety for r in results])
+        gap = np.array([r.final_capture_gap for r in results])
+        value = np.array([r.total_value_to_c for r in results])
         print(
-            f"{r.num_benign:<10} {r.final_apparent_safety:<12.2f} "
-            f"{r.final_true_safety:<12.2f} {r.final_capture_gap:<+12.2f} "
-            f"{r.total_value_to_c}"
+            f"{n:<10} "
+            f"{apparent.mean():.2f} ± {apparent.std():.2f}     "
+            f"{true.mean():.2f} ± {true.std():.2f}     "
+            f"{gap.mean():+.2f} ± {gap.std():.2f}     "
+            f"{value.mean():.0f} ± {value.std():.0f}"
         )
+        agg_results.append({
+            "num_benign": n,
+            "n_seeds": len(results),
+            "apparent_mean": float(apparent.mean()), "apparent_std": float(apparent.std()),
+            "true_mean": float(true.mean()), "true_std": float(true.std()),
+            "gap_mean": float(gap.mean()), "gap_std": float(gap.std()),
+            "value_mean": float(value.mean()), "value_std": float(value.std()),
+        })
 
     # Save aggregate results
     with open(RESULTS_DIR / "sweep_summary.json", "w") as f:
-        json.dump([asdict(r) for r in results], f, indent=2)
+        json.dump(agg_results, f, indent=2)
 
-    plot_sweep(results, RESULTS_DIR)
+    # Aggregated sweep plot with error bars
+    plot_sweep_aggregated(agg_results, RESULTS_DIR)
     print(f"\nAll results saved to {RESULTS_DIR}/")
 
 
